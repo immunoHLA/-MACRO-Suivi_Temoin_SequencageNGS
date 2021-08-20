@@ -1,0 +1,95 @@
+Sub statsTpos()
+    
+    On Error GoTo error
+    Worksheets("Analyse T pos").Unprotect ("bio1fo")
+    Worksheets("T pos").Activate
+    Set startTab = Cells.Find("N° de manip", LookIn:=xlValues)
+    
+    Set dicStats = CreateObject("Scripting.Dictionary")
+    
+    Dim currentArr As Variant, cell2 As Object
+    
+    'nettoie le tableau d'analyse
+    Dim tableau As Range
+    Set tableau = Range(Worksheets("Analyse T pos").Cells(4, 1), Worksheets("Analyse T pos").Cells(147, 18))
+    tableau.ClearContents
+    With tableau.Interior
+        .Pattern = xlNone
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+     
+    col = 1
+    For Each locus In Array("A", "B", "C", "DRB1", "DRB345", "DQA1", "DQB1", "DPA1", "DPB1")
+        cpt = 0
+        For Each cell In Range(Cells(startTab.row + 1, 5), Cells(startTab.End(xlDown).row, 5))
+            If Cells(cell.row, cell.Column - 1) = locus Then
+                cpt = cpt + 1
+                Set cell2 = Cells(cell.row, cell.Column + 1)
+                
+                If InStr(cell, "*") <> 0 Then 'allele 1
+                    arr1 = Split(cell, "*")(1)
+                Else
+                    arr1 = ""
+                End If
+                
+                If InStr(cell2, "*") <> 0 Then 'allele 2
+                    arr2 = Split(cell2, "*")(1)
+                Else
+                    arr2 = ""
+                End If
+                
+                currentArr = Split(arr1 + "/" + arr2, "/") 'concaténation deux alleles
+                
+                'enregistrement dans dictionnaire
+                For Each m In currentArr
+                    If Not dicStats.exists(m) Then
+                        dicStats.Add m, 1
+                    Else
+                        dicStats(m) = dicStats(m) + 1
+                    End If
+                Next m
+            End If
+        Next cell
+        
+        'remplissage du tableau
+        n = 4
+        For Each cle In dicStats.keys
+            If cle <> "" Then
+                Worksheets("Analyse T pos").Cells(n, col) = cle
+                Worksheets("Analyse T pos").Cells(n, col + 1) = Format((dicStats(cle) / cpt) * 100, "0.00")
+                If (dicStats(cle) / cpt) * 100 > 20 Then
+                    Worksheets("Analyse T pos").Cells(n, col).Interior.Color = 10092543
+                    Worksheets("Analyse T pos").Cells(n, col + 1).Interior.Color = 10092543
+                End If
+                n = n + 1
+            End If
+        Next cle
+        
+        'reset dictionnaire
+        dicStats.RemoveAll
+        
+        Range(Cells(4, col), Cells(4, col + 1).End(xlDown)).Select
+        ActiveWorkbook.Worksheets("Analyse T pos").Sort.SortFields.Clear
+        ActiveWorkbook.Worksheets("Analyse T pos").Sort.SortFields.Add Key:=Range(Cells(4, col + 1), Cells(4, col + 1).End(xlDown)) _
+                , SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortTextAsNumbers
+        With ActiveWorkbook.Worksheets("Analyse T pos").Sort
+            .SetRange Range(Cells(4, col), Cells(4, col + 1).End(xlDown))
+            .Header = xlGuess
+            .MatchCase = False
+            .Orientation = xlTopToBottom
+            .SortMethod = xlPinYin
+            .Apply
+        End With
+        
+        col = col + 2
+    Next locus
+    
+    Worksheets("Analyse T pos").Activate
+    ActiveWorkbook.Save
+    Worksheets("Analyse T pos").Protect ("bio1fo")
+    Exit Sub
+error:
+    MsgBox "Une erreur est survenue"
+End Sub
