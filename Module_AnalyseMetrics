@@ -1,0 +1,189 @@
+Sub statsMetrics()
+
+    On Error GoTo error
+    
+    Worksheets("Analyse Metrics").Unprotect ("bio1fo")
+    
+    Worksheets("Metrics").Activate
+    
+    Range(Worksheets("Analyse Metrics").Cells(9, 1), Worksheets("Analyse Metrics").Cells(38, 2)).ClearContents
+    Range(Worksheets("Analyse Metrics").Cells(9, 4), Worksheets("Analyse Metrics").Cells(38, 9)).ClearContents
+    Range(Worksheets("Analyse Metrics").Cells(2, 4), Worksheets("Analyse Metrics").Cells(2, 9)).ClearContents
+    Range(Worksheets("Analyse Metrics").Cells(4, 4), Worksheets("Analyse Metrics").Cells(4, 9)).ClearContents
+    Range(Worksheets("Analyse Metrics").Cells(8, 4), Worksheets("Analyse Metrics").Cells(8, 9)).ClearContents
+    Range(Worksheets("Analyse Metrics").Cells(9, 11), Worksheets("Analyse Metrics").Cells(38, 11)).ClearContents
+    
+    Do
+        choiceDate = InputBox("Veuillez entrer l'année souhaitée pour l'analyse : ")
+        If choiceDate = "" Then
+            Exit Sub
+        End If
+    Loop Until Int(choiceDate) < Format(Date, "YYYY") + 1 And Int(choiceDate) > 2016
+
+    Dim startTab As Object, endTab As Object, dateTab As Object
+    Set dicStats = CreateObject("Scripting.Dictionary")
+    Set allDicStats = CreateObject("Scripting.Dictionary")
+    
+    dicStats.RemoveAll
+    allDicStats.RemoveAll
+    
+    Set startTab = Cells.Find("N° de manip", LookIn:=xlValues) 'N° de manip
+    Set endTab = Cells.Find("Initiales Lecteur", LookIn:=xlValues) 'Initiales Lecteur
+    Set dateTab = Cells.Find("Date", LookIn:=xlValues) 'date
+
+    'recherche techniciennes
+    Dim allTech As Variant, subArr As Variant
+    
+    cpt = 0
+    allTech = Array()
+    For Each tech In Range(Cells(endTab.row + 2, endTab.Column), Cells(endTab.row + 2, endTab.Column).End(xlDown))
+        
+        If Format(Cells(tech.row, dateTab.Column), "YYYY") = choiceDate Then
+            If InStr(tech, "/") <> 0 Then
+                subArr = Split(tech.Text, "/")
+            Else
+                subArr = Array(tech.Text)
+            End If
+            
+            For Each t In subArr
+                If UBound(allTech) = -1 Then
+                    allTech = Array(UCase(t))
+                ElseIf Not exist(allTech, UCase(t)) Then
+                    ReDim Preserve allTech(UBound(allTech) + 1)
+                    allTech(UBound(allTech)) = UCase(t)
+                End If
+            Next t
+            cpt = cpt + 1
+        End If
+    Next tech
+    'enregistrement valeurs de chaque tech et complétion du tableau
+    Dim techValArr As Variant
+
+
+    Dim anneeTab As Object, techTab As Object
+    Set anneeTab = Worksheets("Analyse Metrics").Cells.Find("ANNEE", LookIn:=xlValues)
+    Worksheets("Analyse Metrics").Cells(anneeTab.row + 1, anneeTab.Column) = choiceDate
+    
+    Worksheets("Analyse Metrics").Cells(anneeTab.row + 1, anneeTab.Column + 1) = cpt
+    
+    Set techTab = Worksheets("Analyse Metrics").Cells.Find("TECH", LookIn:=xlValues)
+    
+    Dim allValues As Variant
+    Dim moyCell As Object, sigCell As Object, errorCell As Object, cvCell As Object, sigCellHead As Object, errorCellHead As Object
+    Dim plage As Range
+    
+    Set sigCellHead = Range(Worksheets("Analyse Metrics").Cells(4, 3), Worksheets("Analyse Metrics").Cells(6, 5)).Find("Ecartype", LookIn:=xlValues)
+    Set errorCellHead = Worksheets("Analyse Metrics").Cells.Find("Problèmes ou erreurs", LookIn:=xlValues)
+    colStart = techTab.Column + 3
+    For Each attribut In Range(Cells(startTab.row, startTab.Column + 1), Cells(endTab.row, endTab.Column - 1))
+
+
+        firstRow = techTab.row + 1
+        
+        Worksheets("Analyse Metrics").Cells(8, colStart) = attribut
+        Worksheets("Analyse Metrics").Cells(2, colStart) = attribut
+        
+        '
+        allValues = Array()
+
+        For Each valeur In Range(Cells(attribut.row + 2, attribut.Column), Cells(Cells(endTab.row + 2, endTab.Column).End(xlDown).row, attribut.Column))
+            If Format(Cells(valeur.row, dateTab.Column), "YYYY") = choiceDate Then 'enregistrement de toutes les valeurs de la colonne
+                If UBound(allValues) = -1 Then
+                    allValues = Array(valeur.Value)
+                Else
+                    ReDim Preserve allValues(UBound(allValues) + 1)
+                    allValues(UBound(allValues)) = valeur.Value
+                End If
+            End If
+            
+
+            
+        Next valeur
+        Worksheets("Analyse Metrics").Cells(sigCellHead.row, colStart) = Application.WorksheetFunction.StDev(allValues)
+        '
+        
+        'récupère toutes les valeurs de chaque technicienne
+        For Each tech In allTech
+            techValArr = Array()
+            For Each valeur In Range(Cells(attribut.row + 2, attribut.Column), Cells(startTab.End(xlDown).row, attribut.Column))
+                If Format(Cells(valeur.row, dateTab.Column), "YYYY") = choiceDate And InStr(UCase(Cells(valeur.row, endTab.Column).Value), tech) <> 0 Then
+                    If UBound(techValArr) = -1 Then
+                        techValArr = Array(valeur.Value)
+                    Else
+                        ReDim Preserve techValArr(UBound(techValArr) + 1)
+                        techValArr(UBound(techValArr)) = valeur.Value
+                    End If
+                End If
+            Next valeur
+            
+            dicStats.Add tech, techValArr
+        Next tech
+        'allDicStats.Add attribut, dicStats
+        
+        For Each tec In dicStats.keys
+
+            Set plage = Range(Worksheets("Analyse Metrics").Cells(firstRow, 1), Worksheets("Analyse Metrics").Cells(firstRow + 3, 5))
+            
+            Set moyCell = plage.Find("Moyenne", LookIn:=xlValues)
+            moyRow = moyCell.row
+            Worksheets("Analyse Metrics").Cells(moyRow, colStart) = Application.WorksheetFunction.Average(dicStats(tec))
+            
+            Worksheets("Analyse Metrics").Cells(moyCell.row, techTab.Column) = tec
+            
+            Worksheets("Analyse Metrics").Cells(moyCell.row, techTab.Column + 1) = UBound(dicStats(tec)) + 1
+            
+            Set sigCell = plage.Find("Ecartype", LookIn:=xlValues)
+            sigRow = sigCell.row
+            If UBound(dicStats(tec)) > 0 Then
+                Worksheets("Analyse Metrics").Cells(sigRow, colStart) = Application.WorksheetFunction.StDev(dicStats(tec))
+                
+                Set cvCell = plage.Find("CV", LookIn:=xlValues)
+                cvRow = cvCell.row
+                Worksheets("Analyse Metrics").Cells(cvRow, colStart) = (Worksheets("Analyse Metrics").Cells(sigRow, colStart) / Worksheets("Analyse Metrics").Cells(moyRow, colStart)) * 100
+            
+            Else
+                Worksheets("Analyse Metrics").Cells(sigRow, colStart) = "/"
+                
+                cvRow = cvCell.row
+                Worksheets("Analyse Metrics").Cells(cvRow, colStart) = "/"
+            End If
+            
+            
+            
+            'comptage des problèmes rencontrés
+            cptErr = 0
+            For Each com In Range(Cells(endTab.row + 2, endTab.Column + 1), Cells(Cells(endTab.row + 2, endTab.Column).End(xlDown).row, endTab.Column + 1))
+                If Format(Cells(com.row, dateTab.Column), "YYYY") = choiceDate And Cells(com.row, endTab.Column + 1) <> "" And InStr(UCase(Cells(com.row, endTab.Column).Value), tec) <> 0 Then
+                    cptErr = cptErr + 1
+                End If
+            Next com
+            Worksheets("Analyse Metrics").Cells(moyCell.row, errorCellHead.Column) = cptErr
+            
+        firstRow = firstRow + 3
+        Next tec
+        
+        
+        
+        
+        colStart = colStart + 1
+        dicStats.RemoveAll
+    Next attribut
+    
+
+    'complétion tableau
+    Worksheets("Analyse Metrics").Activate
+    Worksheets("Analyse Metrics").Protect ("bio1fo")
+    Exit Sub
+error:
+    MsgBox "Une erreur est survenue"
+    
+End Sub
+
+Function detectError(row As Integer) As Boolean
+    detectError = False
+    For Each cell In Range(Cells(row, 1), Cells(row, 30))
+        If cell.Interior.Color = "" Then
+            detectError = True
+            Exit For
+    Next cell
+End Function
