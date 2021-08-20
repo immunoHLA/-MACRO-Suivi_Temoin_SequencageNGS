@@ -1,0 +1,113 @@
+Sub SuiviNGS()
+    'Macro réalisée par Louis PETRUS dans le cadre d'un stage en Bioinformatique
+    'Pour le service Immunologie et Immunogénétique (HLA), CHU pellegrin, 33000 Bordeaux
+    '05/2021
+    'On Error GoTo error
+    
+    Workbooks("suivi_Metrics_Controles_NGS.xlsm").Activate
+    Dim t_name As String
+    
+    'VARIABLES MODIFIABLES_____________
+    t_name = "T ADN FL" 'Nom du témoin
+
+    Select Case MsgBoxPerso("Metrics et Controles NGS", "Que souhaitez vous importer ?", t_name, "Métrics", "Annuler")
+    Case "Annuler"
+        Exit Sub
+    Case t_name
+        Tpos t_name
+    Case "Métrics"
+        metrics
+    End Select
+
+    Exit Sub
+error:
+    MsgBox "Une erreur est survenue"
+End Sub
+
+
+
+
+
+Function arrayCSV(t_name As String) As Variant
+    Dim MyLine As String, FileNum As Long, file1
+    Dim subArray As Variant, tempCSV As Variant
+    
+    file1 = Application.GetOpenFilename("csv Files,*.csv", _
+            1, "Select source file:", , False)
+    If file1 = False Then
+        MsgBox "Pas de fichier selectionné ou celui ci n'existe pas"
+        Exit Function
+    End If
+    
+    'Get an unused file number
+    FileNum = FreeFile
+    
+    Open file1 For Input As #FileNum
+    If Err.Number <> 0 Then
+        MsgBox "Erreur de lecture du fichier csv", vbCritical, "Error!"
+        Exit Function
+    End If
+    
+    Dim Items As Variant
+
+    tempCSV = Array()
+    
+    While Not EOF(1)
+        Line Input #FileNum, MyLine
+        Items = Split(MyLine, ",")
+        If UBound(tempCSV) < 1 Or exist(Items, t_name) Then
+            subArray = Array(Items(0))
+            If UBound(Items) > 0 Then
+                For i = 1 To UBound(Items)
+                    ReDim Preserve subArray(UBound(subArray) + 1)
+                    subArray(UBound(subArray)) = Items(i)
+                Next i
+            End If
+            
+            If IsEmpty(tempCSV) Then
+                tempCSV = Array(subArray)
+            Else
+                ReDim Preserve tempCSV(UBound(tempCSV) + 1)
+                tempCSV(UBound(tempCSV)) = subArray
+            End If
+        End If
+    Wend
+    
+    Close #FileNum
+    arrayCSV = tempCSV
+    
+    'mise en forme CSV d'origine
+    Workbooks.Open (file1)
+    Columns("A:A").Select
+    Selection.TextToColumns Destination:=Range("A1"), DataType:=xlDelimited, _
+        TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, Tab:=True, _
+        Semicolon:=False, Comma:=True, Space:=False, Other:=False, FieldInfo _
+        :=Array(1, 1), TrailingMinusNumbers:=True
+    
+    Dim attribut As Object
+    
+    For col = Cells(2, 1).End(xlToRight).Column To 1 Step -1
+        Set attribut = Cells(2, col)
+        If attribut = "Session Name" Or attribut = "Barcode" Or attribut Like "Sample*" Or attribut = "Locus" Or attribut = "Allele1" Or attribut = "Allele2" Then
+        Else
+            Columns(col).Delete Shift:=xlToLeft
+        End If
+    Next col
+    'ActiveWorkbook.Save
+    
+End Function
+
+Function exist(arr As Variant, val As String) As Boolean
+    For Each Value In arr
+        If Value = val Then
+            exist = True
+            Exit Function
+        End If
+    Next Value
+    exist = False
+End Function
+
+
+Sub lastRow()
+    Cells(20, 1).End(xlDown).Activate
+End Sub
